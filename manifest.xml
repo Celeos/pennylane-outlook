@@ -10,8 +10,8 @@
   <DefaultLocale>fr-FR</DefaultLocale>
   <DisplayName DefaultValue="Pennylane CELEOS"/>
   <Description DefaultValue="Transfert des factures reçues par e-mail vers l'adresse de collecte Pennylane de CELEOS."/>
-  <IconUrl DefaultValue="__BASE_URL__/assets/icon-64.png"/>
-  <HighResolutionIconUrl DefaultValue="__BASE_URL__/assets/icon-128.png"/>
+  <IconUrl DefaultValue="https://celeos.github.io/pennylane-outlook/assets/icon-64.png"/>
+  <HighResolutionIconUrl DefaultValue="https://celeos.github.io/pennylane-outlook/assets/icon-128.png"/>
   <SupportUrl DefaultValue="https://celeos.ai"/>
   <AppDomains>
     <AppDomain>https://login.microsoftonline.com</AppDomain>
@@ -27,7 +27,7 @@
   <FormSettings>
     <Form xsi:type="ItemRead">
       <DesktopSettings>
-        <SourceLocation DefaultValue="__BASE_URL__/taskpane.html"/>
+        <SourceLocation DefaultValue="https://celeos.github.io/pennylane-outlook/taskpane.html"/>
         <RequestedHeight>250</RequestedHeight>
       </DesktopSettings>
     </Form>
@@ -70,12 +70,12 @@
     </Hosts>
     <Resources>
       <bt:Images>
-        <bt:Image id="icon16" DefaultValue="__BASE_URL__/assets/icon-16.png"/>
-        <bt:Image id="icon32" DefaultValue="__BASE_URL__/assets/icon-32.png"/>
-        <bt:Image id="icon80" DefaultValue="__BASE_URL__/assets/icon-80.png"/>
+        <bt:Image id="icon16" DefaultValue="https://celeos.github.io/pennylane-outlook/assets/icon-16.png"/>
+        <bt:Image id="icon32" DefaultValue="https://celeos.github.io/pennylane-outlook/assets/icon-32.png"/>
+        <bt:Image id="icon80" DefaultValue="https://celeos.github.io/pennylane-outlook/assets/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="taskpaneUrl" DefaultValue="__BASE_URL__/taskpane.html"/>
+        <bt:Url id="taskpaneUrl" DefaultValue="https://celeos.github.io/pennylane-outlook/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="groupLabel" DefaultValue="CELEOS"/>
@@ -118,12 +118,12 @@
     </Hosts>
     <Resources>
       <bt:Images>
-        <bt:Image id="icon16" DefaultValue="__BASE_URL__/assets/icon-16.png"/>
-        <bt:Image id="icon32" DefaultValue="__BASE_URL__/assets/icon-32.png"/>
-        <bt:Image id="icon80" DefaultValue="__BASE_URL__/assets/icon-80.png"/>
+        <bt:Image id="icon16" DefaultValue="https://celeos.github.io/pennylane-outlook/assets/icon-16.png"/>
+        <bt:Image id="icon32" DefaultValue="https://celeos.github.io/pennylane-outlook/assets/icon-32.png"/>
+        <bt:Image id="icon80" DefaultValue="https://celeos.github.io/pennylane-outlook/assets/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="taskpaneUrl" DefaultValue="__BASE_URL__/taskpane.html"/>
+        <bt:Url id="taskpaneUrl" DefaultValue="https://celeos.github.io/pennylane-outlook/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="groupLabel" DefaultValue="CELEOS"/>
