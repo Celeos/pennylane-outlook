@@ -142,6 +142,7 @@
         findTargetFolder(),
         graph("GET", "/me/messages/" + enc(restId) + "/attachments?$select=id,name,contentType,size,isInline")
       ]);
+      state.folder = folder;
       if (folder && msg.parentFolderId === folder.id) {
         showWarning("Ce message se trouve déjà dans « " + CFG.targetFolderName + " » : il a probablement déjà été transféré.");
       }
@@ -323,9 +324,8 @@
       step("Retrait des pièces jointes non retenues");
       const dAtts = (await graph("GET", "/me/messages/" + enc(draftId) + "/attachments?$select=id,name,size,isInline")).value || [];
       const keep = matchKeep(dAtts, selected);
-      for (const d of dAtts) {
-        if (!keep.has(d.id)) await graph("DELETE", "/me/messages/" + enc(draftId) + "/attachments/" + enc(d.id));
-      }
+      await Promise.all(dAtts.filter((d) => !keep.has(d.id))
+        .map((d) => graph("DELETE", "/me/messages/" + enc(draftId) + "/attachments/" + enc(d.id))));
 
       step("Contrôle du brouillon avant envoi");
       const check = await graph("GET", "/me/messages/" + enc(draftId) + "?$select=toRecipients,ccRecipients,bccRecipients,body&$expand=attachments($select=id,name)");
@@ -339,7 +339,7 @@
       await waitForSent(ref, selected);
 
       step("Classement dans « " + CFG.targetFolderName + " »");
-      const folder = (await findTargetFolder()) || (await createTargetFolder());
+      const folder = state.folder || (await findTargetFolder()) || (await createTargetFolder());
       await graph("POST", "/me/messages/" + enc(msgId) + "/move", { destinationId: folder.id });
 
       if (currentStep) currentStep.classList.add("done");
@@ -389,15 +389,16 @@
 
   async function waitForSent(ref, selected) {
     const filter = "singleValueExtendedProperties/any(ep:ep/id eq '" + PROP_ID + "' and ep/value eq '" + ref + "')";
-    const url = "/me/mailFolders/sentitems/messages?$filter=" + enc(filter) + "&$select=id";
+    const url = "/me/mailFolders/sentitems/messages?$filter=" + enc(filter) + "&$select=id,toRecipients&$expand=attachments($select=id,name)";
     const deadline = Date.now() + CFG.sentCheckTimeoutSeconds * 1000;
+    const delays = [400, 600, 800, 1000, 1500];
+    let i = 0;
     while (Date.now() < deadline) {
-      await sleep(3000);
+      await sleep(delays[Math.min(i++, delays.length - 1)]);
       const r = await graph("GET", url);
       if (r.value && r.value.length) {
-        const sent = await graph("GET", "/me/messages/" + enc(r.value[0].id) + "?$select=toRecipients&$expand=attachments($select=id,name)");
-        verifyMessage(sent, selected, false);
-        return sent;
+        verifyMessage(r.value[0], selected, false);
+        return r.value[0];
       }
     }
     throw new Error("Le message envoyé n'apparaît pas dans Éléments envoyés après " + CFG.sentCheckTimeoutSeconds + " s. Le mail d'origine n'a pas été déplacé : vérifiez Éléments envoyés avant de relancer.");
