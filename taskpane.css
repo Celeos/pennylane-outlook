@@ -1,0 +1,58 @@
+@font-face { font-family: "CELEOS Open Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("assets/fonts/open-sans-latin-400-normal.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "CELEOS Open Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("assets/fonts/open-sans-latin-ext-400-normal.woff2") format("woff2"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "CELEOS Open Sans"; font-style: normal; font-weight: 600; font-display: swap; src: url("assets/fonts/open-sans-latin-600-normal.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "CELEOS Open Sans"; font-style: normal; font-weight: 600; font-display: swap; src: url("assets/fonts/open-sans-latin-ext-600-normal.woff2") format("woff2"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "CELEOS Saira"; font-style: normal; font-weight: 600; font-display: swap; src: url("assets/fonts/saira-semi-condensed-latin-600-normal.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "CELEOS Saira"; font-style: normal; font-weight: 600; font-display: swap; src: url("assets/fonts/saira-semi-condensed-latin-ext-600-normal.woff2") format("woff2"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+:root {
+  --violet: #864681;
+  --bleu: #4289b3;
+  --sage: #8ca696;
+  --ambre: #fc9e36;
+  --magenta: #a3296a;
+  --texte: #2b2b2b;
+  --muted: #6b6b6b;
+  --bord: #e3e0e6;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 14px; background: #ffffff; color: var(--texte);
+  font-family: "CELEOS Open Sans", "Open Sans", "Segoe UI", Arial, sans-serif; font-size: 13px; line-height: 1.4;
+}
+header { border-bottom: 2px solid var(--bleu); padding-bottom: 8px; margin-bottom: 12px; }
+h1 {
+  font-family: "CELEOS Saira", "Saira SemiCondensed", "Saira Semi Condensed", "Segoe UI", sans-serif;
+  font-weight: 600; color: var(--violet); font-size: 19px; margin: 0;
+}
+.to { color: var(--muted); font-size: 12px; word-break: break-all; }
+.card { border: 1px solid var(--bord); border-radius: 6px; padding: 10px; margin-bottom: 12px; }
+.label { font-weight: 600; color: var(--violet); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.subject { font-weight: 600; word-break: break-word; }
+.muted { color: var(--muted); }
+.small { font-size: 11px; margin-top: 6px; }
+.hidden { display: none !important; }
+.warn { margin-top: 8px; padding: 6px 8px; border-left: 3px solid var(--ambre); background: #fff8ef; }
+.att { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; border-top: 1px solid #f1eff3; }
+.att:first-child { border-top: none; }
+.att input { margin-top: 3px; accent-color: var(--violet); }
+.att .name { word-break: break-all; }
+.att .meta { font-size: 11px; color: var(--muted); }
+.tag { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 4px; border: 1px solid; }
+.tag.ok { color: #3d6b4f; border-color: var(--sage); }
+.tag.no { color: var(--magenta); border-color: var(--magenta); }
+.tag.doubt { color: #9a5a0c; border-color: var(--ambre); }
+button.primary {
+  width: 100%; padding: 9px; border: none; border-radius: 5px; background: var(--violet);
+  color: #fff; font-weight: 600; font-size: 13px; cursor: pointer;
+}
+button.primary:disabled { background: #c9b6c7; cursor: default; }
+#steps { margin: 0; padding-left: 18px; }
+#steps li { margin: 3px 0; }
+#steps li.done::marker { color: var(--sage); }
+#steps li.err { color: var(--magenta); }
+.status { margin-top: 10px; }
+.status.ok { color: #3d6b4f; font-weight: 600; }
+.status.err { color: var(--magenta); white-space: pre-wrap; word-break: break-word; }
+#addr { width: 100%; margin: 8px 0; padding: 7px; border: 1px solid var(--bord); border-radius: 4px; font: inherit; }
+#edit-dest { color: var(--bleu); font-size: 11px; margin-left: 4px; }
+button, input { font-family: inherit; }

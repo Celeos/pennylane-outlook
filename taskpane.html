@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://appsforoffice.microsoft.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://*.office.com https://*.office.net https://*.microsoft.com; worker-src 'self' blob:; frame-src https://*.office.com https://*.office.net https://*.microsoft.com https://login.microsoftonline.com; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Pennylane CELEOS</title>
+  <link rel="stylesheet" href="taskpane.css">
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <script src="lib/msal-browser.min.js"></script>
+  <script src="config.js"></script>
+  <script src="taskpane.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Transfert Pennylane</h1>
+    <div class="to">Vers <span id="dest">(adresse non configurée)</span> <a href="#" id="edit-dest" class="hidden">modifier</a></div>
+  </header>
+
+  <section id="settings" class="card hidden">
+    <div class="label">Adresse de collecte Pennylane</div>
+    <div class="muted small">Saisie une seule fois, enregistrée dans votre boîte Outlook. Seules les adresses en @<span id="dom"></span> sont acceptées.</div>
+    <input id="addr" type="email" autocomplete="off" spellcheck="false">
+    <button id="btn-save" class="primary">Enregistrer</button>
+    <div id="settings-err" class="status err"></div>
+  </section>
+
+  <section id="message" class="card hidden">
+    <div class="label">Message</div>
+    <div id="subject" class="subject"></div>
+    <div id="sender" class="muted"></div>
+    <div id="warning" class="warn hidden"></div>
+  </section>
+
+  <section id="attachments" class="card hidden">
+    <div class="label">Pièces jointes à transférer</div>
+    <div id="att-list"></div>
+    <div id="att-hint" class="muted small"></div>
+  </section>
+
+  <div id="actions" class="hidden">
+    <button id="btn-transfer" class="primary" disabled>Transférer et classer</button>
+  </div>
+
+  <section id="progress" class="card hidden">
+    <div class="label">Suivi</div>
+    <ol id="steps"></ol>
+  </section>
+
+  <div id="status" class="status"></div>
+</body>
+</html>
