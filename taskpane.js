@@ -8,7 +8,7 @@
 
   const CFG = window.CELEOS_CONFIG;
   const GRAPH = "https://graph.microsoft.com/v1.0";
-  const SCOPES = ["Mail.ReadWrite", "Mail.Send"];
+  const SCOPES = ["Mail.ReadWrite", "Mail.Send", "Mail.ReadWrite.Shared", "Mail.Send.Shared"];
   // Propriété MAPI nommée posée sur le brouillon pour retrouver l'envoi de façon certaine.
   const PROP_ID = "String {6f1e8a3c-2b7d-4c5e-9a10-3d4b5c6e7f80} Name CeleosPennylaneRef";
 
@@ -93,13 +93,41 @@
 
   /* ---------- Authentification et Graph ---------- */
 
+  let signedInUser = null; // compte Microsoft 365 connecté (UPN)
+
   async function getToken() {
     const req = { scopes: SCOPES };
+    let r;
     try {
-      return (await pca.acquireTokenSilent(req)).accessToken;
+      r = await pca.acquireTokenSilent(req);
     } catch (e) {
-      return (await pca.acquireTokenPopup(req)).accessToken;
+      r = await pca.acquireTokenPopup(req);
     }
+    if (r && r.account && r.account.username) signedInUser = r.account.username.toLowerCase();
+    return r.accessToken;
+  }
+
+  // Boîte aux lettres du message affiché : la sienne, ou une boîte partagée (ex. compta@).
+  function getSharedProps(item) {
+    return new Promise((resolve) => {
+      if (!item.getSharedPropertiesAsync) return resolve(null);
+      try {
+        item.getSharedPropertiesAsync((r) => resolve(r.status === Office.AsyncResultStatus.Succeeded ? r.value : null));
+      } catch (e) { resolve(null); }
+    });
+  }
+
+  async function resolveMailbox(item) {
+    await getToken();
+    const sp = await getSharedProps(item);
+    let addr = sp && (sp.targetMailbox || sp.owner);
+    if (!addr) {
+      const prof = Office.context.mailbox.userProfile && Office.context.mailbox.userProfile.emailAddress;
+      if (prof && signedInUser && prof.toLowerCase() !== signedInUser) addr = prof;
+    }
+    addr = addr ? addr.toLowerCase() : null;
+    if (!addr || addr === signedInUser) return { base: "/me", address: signedInUser, shared: false };
+    return { base: "/users/" + enc(addr), address: addr, shared: true };
   }
 
   async function graph(method, path, body, opts = {}) {
@@ -129,22 +157,25 @@
       return setStatus("Sélectionnez un message.", "");
     }
     const restId = Office.context.mailbox.convertToRestId(item.itemId, Office.MailboxEnums.RestVersion.v2_0);
-    state = { restId, atts: [] };
+    let mb;
+    try { mb = await resolveMailbox(item); } catch (e) { return fail("Connexion impossible : " + e.message); }
+    state = { restId, atts: [], mb };
 
     $("message").classList.remove("hidden");
     $("subject").textContent = item.subject || "(sans objet)";
     $("sender").textContent = item.from ? (item.from.displayName + " <" + item.from.emailAddress + ">") : "";
 
     try {
+      if (mb.shared) showWarning("Boîte partagée : " + mb.address + ". Le transfert partira de cette adresse et le message sera classé dans son dossier « " + CFG.targetFolderName + " ».");
       setStatus("Analyse des pièces jointes en cours...", "");
       const [msg, folder, list] = await Promise.all([
-        graph("GET", "/me/messages/" + enc(restId) + "?$select=id,parentFolderId"),
+        graph("GET", state.mb.base + "/messages/" + enc(restId) + "?$select=id,parentFolderId"),
         findTargetFolder(),
-        graph("GET", "/me/messages/" + enc(restId) + "/attachments?$select=id,name,contentType,size,isInline")
+        graph("GET", state.mb.base + "/messages/" + enc(restId) + "/attachments?$select=id,name,contentType,size,isInline")
       ]);
       state.folder = folder;
       if (folder && msg.parentFolderId === folder.id) {
-        showWarning("Ce message se trouve déjà dans « " + CFG.targetFolderName + " » : il a probablement déjà été transféré.");
+        showWarning((mb.shared ? $("warning").textContent + " " : "") + "Ce message se trouve déjà dans « " + CFG.targetFolderName + " » : il a probablement déjà été transféré.");
       }
       state.atts = await classify(list.value || []);
       renderAttachments();
@@ -219,7 +250,7 @@
   }
 
   async function pdfText(msgId, attId) {
-    const res = await graph("GET", "/me/messages/" + enc(msgId) + "/attachments/" + enc(attId) + "/$value", undefined, { raw: true });
+    const res = await graph("GET", state.mb.base + "/messages/" + enc(msgId) + "/attachments/" + enc(attId) + "/$value", undefined, { raw: true });
     const buf = await res.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false, enableXfa: false, disableFontFace: true }).promise;
     let txt = "";
@@ -308,12 +339,12 @@
 
     try {
       step("Création du brouillon de transfert");
-      const draft = await graph("POST", "/me/messages/" + enc(msgId) + "/createForward", {});
+      const draft = await graph("POST", state.mb.base + "/messages/" + enc(msgId) + "/createForward", {});
       draftId = draft.id;
 
       step("Destinataire Pennylane, corps vidé");
       const ref = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
-      await graph("PATCH", "/me/messages/" + enc(draftId), {
+      await graph("PATCH", state.mb.base + "/messages/" + enc(draftId), {
         toRecipients: [{ emailAddress: { address: dest, name: CFG.pennylaneName } }],
         ccRecipients: [],
         bccRecipients: [],
@@ -322,17 +353,17 @@
       });
 
       step("Retrait des pièces jointes non retenues");
-      const dAtts = (await graph("GET", "/me/messages/" + enc(draftId) + "/attachments?$select=id,name,size,isInline")).value || [];
+      const dAtts = (await graph("GET", state.mb.base + "/messages/" + enc(draftId) + "/attachments?$select=id,name,size,isInline")).value || [];
       const keep = matchKeep(dAtts, selected);
       await Promise.all(dAtts.filter((d) => !keep.has(d.id))
-        .map((d) => graph("DELETE", "/me/messages/" + enc(draftId) + "/attachments/" + enc(d.id))));
+        .map((d) => graph("DELETE", state.mb.base + "/messages/" + enc(draftId) + "/attachments/" + enc(d.id))));
 
       step("Contrôle du brouillon avant envoi");
-      const check = await graph("GET", "/me/messages/" + enc(draftId) + "?$select=toRecipients,ccRecipients,bccRecipients,body&$expand=attachments($select=id,name)");
+      const check = await graph("GET", state.mb.base + "/messages/" + enc(draftId) + "?$select=toRecipients,ccRecipients,bccRecipients,body&$expand=attachments($select=id,name)");
       verifyMessage(check, selected, true);
 
       step("Envoi");
-      await graph("POST", "/me/messages/" + enc(draftId) + "/send");
+      await graph("POST", state.mb.base + "/messages/" + enc(draftId) + "/send");
       draftId = null;
 
       step("Vérification dans Éléments envoyés");
@@ -340,7 +371,7 @@
 
       step("Classement dans « " + CFG.targetFolderName + " »");
       const folder = state.folder || (await findTargetFolder()) || (await createTargetFolder());
-      await graph("POST", "/me/messages/" + enc(msgId) + "/move", { destinationId: folder.id });
+      await graph("POST", state.mb.base + "/messages/" + enc(msgId) + "/move", { destinationId: folder.id });
 
       if (currentStep) currentStep.classList.add("done");
       setStatus("Transfert envoyé, vérifié et message classé.", "ok");
@@ -349,7 +380,7 @@
       if (currentStep) currentStep.classList.add("err");
       let msg = e.message;
       if (draftId) {
-        try { await graph("DELETE", "/me/messages/" + enc(draftId)); msg += "\nLe brouillon a été supprimé, rien n'a été envoyé."; }
+        try { await graph("DELETE", state.mb.base + "/messages/" + enc(draftId)); msg += "\nLe brouillon a été supprimé, rien n'a été envoyé."; }
         catch (_) { msg += "\nLe brouillon n'a pas pu être supprimé : vérifiez le dossier Brouillons."; }
       }
       fail(msg);
@@ -389,16 +420,22 @@
 
   async function waitForSent(ref, selected) {
     const filter = "singleValueExtendedProperties/any(ep:ep/id eq '" + PROP_ID + "' and ep/value eq '" + ref + "')";
-    const url = "/me/mailFolders/sentitems/messages?$filter=" + enc(filter) + "&$select=id,toRecipients&$expand=attachments($select=id,name)";
+    const url = state.mb.base + "/mailFolders/sentitems/messages?$filter=" + enc(filter) + "&$select=id,toRecipients&$expand=attachments($select=id,name)";
+    const urlMe = "/me/mailFolders/sentitems/messages?$filter=" + enc(filter) + "&$select=id,toRecipients&$expand=attachments($select=id,name)";
     const deadline = Date.now() + CFG.sentCheckTimeoutSeconds * 1000;
     const delays = [400, 600, 800, 1000, 1500];
     let i = 0;
     while (Date.now() < deadline) {
       await sleep(delays[Math.min(i++, delays.length - 1)]);
       const r = await graph("GET", url);
-      if (r.value && r.value.length) {
-        verifyMessage(r.value[0], selected, false);
-        return r.value[0];
+      let hit = r.value && r.value[0];
+      if (!hit && state.mb.shared && urlMe) {
+        const r2 = await graph("GET", urlMe);
+        hit = r2.value && r2.value[0];
+      }
+      if (hit) {
+        verifyMessage(hit, selected, false);
+        return hit;
       }
     }
     throw new Error("Le message envoyé n'apparaît pas dans Éléments envoyés après " + CFG.sentCheckTimeoutSeconds + " s. Le mail d'origine n'a pas été déplacé : vérifiez Éléments envoyés avant de relancer.");
@@ -406,11 +443,11 @@
 
   async function findTargetFolder() {
     const name = CFG.targetFolderName.replace(/'/g, "''");
-    const r = await graph("GET", "/me/mailFolders/inbox/childFolders?$filter=" + enc("displayName eq '" + name + "'") + "&$select=id,displayName");
+    const r = await graph("GET", state.mb.base + "/mailFolders/inbox/childFolders?$filter=" + enc("displayName eq '" + name + "'") + "&$select=id,displayName");
     return (r.value && r.value[0]) || null;
   }
 
   async function createTargetFolder() {
-    return graph("POST", "/me/mailFolders/inbox/childFolders", { displayName: CFG.targetFolderName });
+    return graph("POST", state.mb.base + "/mailFolders/inbox/childFolders", { displayName: CFG.targetFolderName });
   }
 })();
