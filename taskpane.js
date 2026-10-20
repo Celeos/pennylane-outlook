@@ -169,7 +169,7 @@
       if (mb.shared) showWarning("Boîte partagée : " + mb.address + ". Le transfert partira de cette adresse et le message sera classé dans son dossier « " + CFG.targetFolderName + " ».");
       setStatus("Analyse des pièces jointes en cours...", "");
       const [msg, folder, list] = await Promise.all([
-        graph("GET", state.mb.base + "/messages/" + enc(restId) + "?$select=id,parentFolderId"),
+        graph("GET", state.mb.base + "/messages/" + enc(restId) + "?$select=id,parentFolderId,conversationId"),
         findTargetFolder(),
         graph("GET", state.mb.base + "/messages/" + enc(restId) + "/attachments?$select=id,name,contentType,size,isInline")
       ]);
@@ -177,6 +177,7 @@
       if (folder && msg.parentFolderId === folder.id) {
         showWarning((mb.shared ? $("warning").textContent + " " : "") + "Ce message se trouve déjà dans « " + CFG.targetFolderName + " » : il a probablement déjà été transféré.");
       }
+      checkAlreadySent(msg.conversationId).catch(() => {});
       state.atts = await classify(list.value || []);
       renderAttachments();
       setStatus("", "");
@@ -359,7 +360,7 @@
         .map((d) => graph("DELETE", state.mb.base + "/messages/" + enc(draftId) + "/attachments/" + enc(d.id))));
 
       step("Contrôle du brouillon avant envoi");
-      const check = await graph("GET", state.mb.base + "/messages/" + enc(draftId) + "?$select=toRecipients,ccRecipients,bccRecipients,body&$expand=attachments($select=id,name)");
+      const check = await graph("GET", state.mb.base + "/messages/" + enc(draftId) + "?$select=toRecipients,ccRecipients,bccRecipients,body,internetMessageId,conversationId&$expand=attachments($select=id,name)");
       verifyMessage(check, selected, true);
 
       step("Envoi");
@@ -367,7 +368,7 @@
       draftId = null;
 
       step("Vérification dans Éléments envoyés");
-      await waitForSent(ref, selected);
+      await waitForSent(ref, selected, { imid: check.internetMessageId, cid: check.conversationId, t0: Date.now() - 60000 });
 
       step("Classement dans « " + CFG.targetFolderName + " »");
       const folder = state.folder || (await findTargetFolder()) || (await createTargetFolder());
@@ -418,27 +419,55 @@
     if (errs.length) throw new Error("Contrôle " + (isDraft ? "du brouillon" : "de l'envoi") + " en échec : " + errs.join(" ; "));
   }
 
-  async function waitForSent(ref, selected) {
-    const filter = "singleValueExtendedProperties/any(ep:ep/id eq '" + PROP_ID + "' and ep/value eq '" + ref + "')";
-    const url = state.mb.base + "/mailFolders/sentitems/messages?$filter=" + enc(filter) + "&$select=id,toRecipients&$expand=attachments($select=id,name)";
-    const urlMe = "/me/mailFolders/sentitems/messages?$filter=" + enc(filter) + "&$select=id,toRecipients&$expand=attachments($select=id,name)";
+  // Recherche du message envoyé par trois critères successifs : identifiant Internet du message,
+  // propriété posée sur le brouillon, puis conversation + destinataire + heure d'envoi.
+  async function waitForSent(ref, selected, meta) {
+    const SEL = "&$select=id,toRecipients,sentDateTime&$expand=attachments($select=id,name)";
+    const q = (base, filter) => base + "/mailFolders/sentitems/messages?$filter=" + enc(filter) + SEL;
+    const bases = state.mb.shared ? [state.mb.base, "/me"] : [state.mb.base];
+    const filters = [];
+    if (meta && meta.imid) filters.push({ f: "internetMessageId eq '" + meta.imid.replace(/'/g, "''") + "'" });
+    filters.push({ f: "singleValueExtendedProperties/any(ep:ep/id eq '" + PROP_ID + "' and ep/value eq '" + ref + "')" });
+    if (meta && meta.cid) filters.push({ f: "conversationId eq '" + meta.cid.replace(/'/g, "''") + "'", conv: true });
     const deadline = Date.now() + CFG.sentCheckTimeoutSeconds * 1000;
-    const delays = [400, 600, 800, 1000, 1500];
+    const delays = [400, 600, 800, 1000, 1500, 2000];
     let i = 0;
     while (Date.now() < deadline) {
       await sleep(delays[Math.min(i++, delays.length - 1)]);
-      const r = await graph("GET", url);
-      let hit = r.value && r.value[0];
-      if (!hit && state.mb.shared && urlMe) {
-        const r2 = await graph("GET", urlMe);
-        hit = r2.value && r2.value[0];
-      }
-      if (hit) {
-        verifyMessage(hit, selected, false);
-        return hit;
+      for (const b of bases) {
+        for (const c of filters) {
+          let r;
+          try { r = await graph("GET", q(b, c.f)); } catch (e) { continue; } // critère non pris en charge : on passe au suivant
+          let hits = (r && r.value) || [];
+          if (c.conv) {
+            hits = hits.filter((m) => new Date(m.sentDateTime).getTime() >= meta.t0 &&
+              (m.toRecipients || []).some((t) => (t.emailAddress.address || "").toLowerCase() === dest));
+          }
+          if (hits.length) {
+            verifyMessage(hits[0], selected, false);
+            return hits[0];
+          }
+        }
       }
     }
     throw new Error("Le message envoyé n'apparaît pas dans Éléments envoyés après " + CFG.sentCheckTimeoutSeconds + " s. Le mail d'origine n'a pas été déplacé : vérifiez Éléments envoyés avant de relancer.");
+  }
+
+  // Signale un transfert déjà envoyé à Pennylane dans la même conversation.
+  async function checkAlreadySent(cid) {
+    if (!cid || !dest) return;
+    const bases = state.mb.shared ? [state.mb.base, "/me"] : [state.mb.base];
+    for (const b of bases) {
+      const r = await graph("GET", b + "/mailFolders/sentitems/messages?$filter=" + enc("conversationId eq '" + cid.replace(/'/g, "''") + "'") + "&$select=toRecipients,sentDateTime");
+      const prev = ((r && r.value) || []).filter((m) => (m.toRecipients || []).some((t) => (t.emailAddress.address || "").toLowerCase() === dest));
+      if (prev.length) {
+        const d = prev.map((m) => new Date(m.sentDateTime)).sort((a, b2) => b2 - a)[0];
+        const txt = "Déjà transféré à Pennylane le " + d.toLocaleDateString("fr-FR") + " à " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) +
+          (prev.length > 1 ? " (" + prev.length + " envois)" : "") + ".";
+        showWarning(($("warning").classList.contains("hidden") ? "" : $("warning").textContent + " ") + txt);
+        return;
+      }
+    }
   }
 
   async function findTargetFolder() {
